@@ -1,0 +1,106 @@
+#!/usr/bin/env python
+
+import rospy
+import actionlib
+
+from imrt_navigate_to_pose.simple_nav_helpers import PurePursuitController
+from imrt_navigate_to_pose.simple_nav_helpers import SimpleNavHelpers
+from imrt_navigate_to_pose.msg import NavigateToPoseAction
+from imrt_navigate_to_pose.msg import NavigateToPoseFeedback
+from imrt_navigate_to_pose.msg import NavigateToPoseResult
+
+from geometry_msgs.msg import Twist
+
+
+class NavigateToPoseServerNode():
+    def __init__(self, *args):
+
+        self.feedback = NavigateToPoseFeedback()
+        self.result = NavigateToPoseResult()
+
+        self.action_server = actionlib.SimpleActionServer(
+            "/navigate_to_pose", NavigateToPoseAction,
+            execute_cb=self.server_callback, auto_start=False)
+        self.action_server.start()
+
+        self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=1)
+
+        self.helpers = SimpleNavHelpers()
+
+        linear_k = 1.0
+        angular_k = 5.0
+        linear_max = 0.5
+        angular_max = 0.5
+        self.controller = PurePursuitController(
+            linear_k, angular_k, linear_max, angular_max)
+
+        self.dist_error_tolerance = 0.05  # m/s
+        self.rotation_error_tolerance = 0.05  # rad/s
+
+        rospy.loginfo("Started /navigate_to_pose action server")
+
+    def server_callback(self, goal):
+        rospy.loginfo("Recieved a goal from client")
+        rospy.loginfo(goal.goal_pose)
+
+        dist_to_goal_satisfied = False
+        rot_to_goal_satisfied = False
+        rate = rospy.Rate(15)
+
+        while not (dist_to_goal_satisfied and rot_to_goal_satisfied) and not rospy.is_shutdown():
+
+            # Check if client requested a cancel
+            if self.action_server.is_preempt_requested():
+                rospy.loginfo(
+                    "Preempting the goal on /navigate_to_pose action server")
+                self.action_server.set_preempted()
+                dist_to_goal_satisfied = True
+                rot_to_goal_satisfied = True
+                break
+
+            curr_robot_pose = self.helpers.get_curr_robot_pose()
+            curr_dist_to_goal = self.helpers.pose_euclidean_dist(
+                curr_robot_pose.pose, goal.goal_pose.pose)
+
+            # Periodically publish feedback
+            self.feedback.remaining_distance_to_goal = curr_dist_to_goal
+            self.action_server.publish_feedback(self.feedback)
+
+            # VERY SIMPLE PURE PURSUIT CONTROLLER
+            dist_error, rot_error = self.controller.compute_error(
+                curr_robot_pose, goal.goal_pose, dist_to_goal_satisfied)
+
+            if dist_error < self.dist_error_tolerance:
+                rospy.loginfo(
+                    "We are at goal now, adjusting to correct heading")
+                dist_to_goal_satisfied = True
+
+            if dist_to_goal_satisfied and (abs(rot_error) < self.rotation_error_tolerance):
+                rospy.loginfo(
+                    "Corrected the heading,")
+                rot_to_goal_satisfied = True
+
+            if (dist_to_goal_satisfied and rot_to_goal_satisfied):
+                self.result.success = True
+                self.action_server.set_succeeded()
+                rospy.loginfo("Navigation was a success")
+
+            v_in, w_in = self.controller.compute_velocities(
+                curr_robot_pose, goal.goal_pose, dist_to_goal_satisfied)
+
+            # Publish required velocity commands
+            computed_velocity = Twist()
+            computed_velocity.linear.x = v_in
+            computed_velocity.angular.z = w_in
+            self.cmd_vel_pub.publish(computed_velocity)
+            rate.sleep()
+
+
+def main():
+    rospy.init_node("NavigateToPoseServerNode")
+    NavigateToPoseServerNode()
+    rospy.spin()
+
+
+if __name__ == '__main__':
+    main()

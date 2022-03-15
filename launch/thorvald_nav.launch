@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<launch>
+
+    <include file="$(find imrt_navigate_to_pose)/launch/world_bringup.launch">
+        <arg name="use_thorvald" value="true"/>
+    </include>
+
+    <node pkg="imrt_navigate_to_pose" type="action_server" name="action_server" output="screen">
+        <remap from="cmd_vel" to="thorvald/cmd_vel" />
+    </node>
+
+</launch>

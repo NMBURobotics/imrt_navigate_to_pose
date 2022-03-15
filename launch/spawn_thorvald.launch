@@ -1,0 +1,60 @@
+<?xml version="1.0" ?>
+
+<launch>
+
+  <!-- This file provides an example for launching a Thorvald robot.
+       Copy this file, together with any config files you wish to edit, to your own package before editing. -->
+
+
+  <!-- Robot name and tf prefix -->
+  <arg name="robot_name" default="" />
+  <arg name="tf_prefix" default="" />
+
+  <!-- Path to tobot configuration file
+       This file list modules on a given robot with key parameters like position in the base_link frame, gear ratios, etc.
+       The robot description is then automatically generated from this file.
+       Many examples are found in the thorvald_description package -->
+  <arg name="robot_model" default="$(find thorvald_description)/config/thorvald_ii_4wd4ws_std/thorvald_ii_4wd4ws_std.yaml" />
+
+  <!-- Path to model extras xacro file
+       This file is used to define any mesh or tfs that are not automatically generated from the robot configuration file
+       Examples include sensors and custom frame members
+       Leave empty if no additional tfs or meshers are required -->
+  <arg name="model_extras" default="" />
+
+  <!-- Simulated or real robot.
+       If set to True, the base driver node will simulate motor feedback. -->
+  <arg name="simple_sim" default="True" />
+
+  <arg name="enable_odom_tf" default="True" />
+  <arg name="odom_frame_id" default="odom" />
+
+
+  <!-- Thorvald bringup -->
+
+  <node pkg="thorvald_base" type="base_driver" name="base_driver" output="screen">
+    <param name="tf_prefix" value="$(arg tf_prefix)" />
+    <rosparam command="load" file="$(arg robot_model)" />
+    <param name="simple_sim" value="$(arg simple_sim)" />
+    <param name="enable_odom_tf" value="$(arg enable_odom_tf)" />
+    <param name="odom_frame_id" value="$(arg odom_frame_id)" />
+    <!-- passthrough_gazebo_odometry == true will forward gazebo odometry should it become available -->
+    <param name="passthrough_gazebo_odometry" value="true" />
+    <param name="can_interface_type" value="" />
+    <param name="can_interface_name" value="" />
+    <remap from="cmd_vel" to="thorvald/cmd_vel" />
+    <remap from="joint_states" to="base_driver/joint_states" />
+  </node>
+
+  <include file="$(find thorvald_description)/launch/model.launch">
+    <arg name="robot_name" value="$(arg robot_name)" />
+    <arg name="tf_prefix" value="$(arg tf_prefix)" />
+    <arg name="robot_model" value="$(arg robot_model)" />
+    <arg name="model_extras" value="$(arg model_extras)" />
+  </include>
+
+
+  <!-- Spawn robot in Gazebo -->
+  <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-param robot_description -urdf -x -2 -y -2 -z 1 -model thorvald_ii" output="screen" />
+
+</launch>

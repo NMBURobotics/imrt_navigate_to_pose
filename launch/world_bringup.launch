@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="use_thorvald" default="false" />
+
+    <group unless="$(arg use_thorvald)">
+        <include file="$(find imrt_navigate_to_pose)/launch/spawn_husky.launch" />
+    </group>
+
+    <group if="$(arg use_thorvald)">
+        <include file="$(find imrt_navigate_to_pose)/launch/spawn_thorvald.launch" />
+    </group>
+
+
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="world_name" value="worlds/empty.world"/>
+        <arg name="paused" value="false"/>
+        <arg name="use_sim_time" value="true"/>
+        <arg name="gui" value="true"/>
+        <arg name="recording" value="false"/>
+        <arg name="debug" value="false"/>
+    </include>
+
+
+</launch>
